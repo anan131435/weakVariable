@@ -1,8 +1,8 @@
 1.block 中用到的外部变量最好使用__weak修饰，避免内存泄漏，block引起循环引用的原因是：1.对于（block内部使用到的）外部变量，对其执行retain的时机和该block的执行时机是不同步的，在block声明的时候就对外部变量进行了retain，而block是否执行和执行时间是不可预测的。
 
 __weak修饰符修饰的变量：
-1.__weak修饰符修饰的变量所引用的对象被dealloc，则将nil赋值给该变量
-2.__weak修饰符修饰的变量，是注册到autoreleasepool中的对象
+1.__weak修饰的变量所引用的对象被dealloc，则将nil赋值给该变量
+2.__weak修饰的变量，是注册到autoreleasepool中的对象
 
 实现：
 1.__weak修饰符修饰的变量所引用的对象被dealloc，则将nil赋值给该变量
@@ -54,6 +54,22 @@ objc_initWeak(&objc,tmp);
 objc_release(tmp); 因为只有一个弱引用所以被释放
 objc_destoryWeak(&objc);
 虽然自己生成并持有的对象通过objc_initWeak函数被赋给__weak修饰的变量，但是编译器判断没有持有者，故该对象被立刻废弃
+
+2.再确认另一功能：__weak修饰的变量，即是注册到autoreleasepool中的对象
+{
+  id __weak obj1 = obj;
+  nslog(@“%@”,obj1);
+}
+伪代码：
+id obj1;
+objc_initWeak(&obj1,obj);
+id tmp = objc_loadWeakRetained(&obj1);
+objc_autorelease(tmp);
+与被赋值时相比，在附有__weak修饰的变量的情形下，增加了对objc_loadWeakRetained函数和objc_autorelease函数的调用
+
+objc_loadWeakRetained函数取出__weak修饰符引用的对象并retain
+objc_autoRelease函数将对象注册到自动释放池中
+
 
 
 
