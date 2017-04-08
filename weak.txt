@@ -1,0 +1,63 @@
+1.block 中用到的外部变量最好使用__weak修饰，避免内存泄漏，block引起循环引用的原因是：1.对于（block内部使用到的）外部变量，对其执行retain的时机和该block的执行时机是不同步的，在block声明的时候就对外部变量进行了retain，而block是否执行和执行时间是不可预测的。
+
+__weak修饰符修饰的变量：
+1.__weak修饰符修饰的变量所引用的对象被dealloc，则将nil赋值给该变量
+2.__weak修饰符修饰的变量，是注册到autoreleasepool中的对象
+
+实现：
+1.__weak修饰符修饰的变量所引用的对象被dealloc，则将nil赋值给该变量
+{
+  id __weak obj1 = obj;
+}
+伪代码：
+id obj1;
+objc_initWeak(&obj1,obj);
+objc_destoryWeak(&obj1);
+通过objc_initWeak函数初始化使用__weak修饰符修饰的变量，在变量作用域结束时通过objc_destoryWeak函数释放该变量
+如以下源码所示：objc_initWeak函数将__weak修饰符的变量初始化为0后，会将赋值的对象作为参数调用objc_storeWeak函数
+{
+ obj1 = 0;
+ objc_storeWeak(&obj1,obj);
+ objc_storeWeak(&obj1,0);
+}
+伪代码：
+id obj1; obj1 = 0;
+objc_storeWeak(&obj1,obj);
+objc_storeWeak(&obj1,0);
+objc_storeWeak 函数把第二参数的赋值对象的地址作为键值，将第一参数的附有__weak修饰符的变量的地址注册到weak表中
+如果第二参数为0，则把变量的地址从weak表中删除
+
+
+对象被释放时，程序的动作如下：
+objc_release
+因为引用计数为0，所以执行dealloc
+_objc_rootDealloc
+objc_dispose
+objc_clear_deallocating
+
+对象被弃用时最后调用的objc_clear_deallocating函数动作如下：
+1.从weak表中获取废弃对象的地址为键值的记录
+2.将包含在记录中的所有附有__weak修饰符变量的地址，赋值为nil
+3.从weak表中删除该记录
+4.从引用技术标中删除废弃对象的地址为键值的记录
+
+以下源码会引起编译器的警告：
+{
+ id __weak obj = [[NSObject alloc] init]
+}
+因为该源码将自己生成并持有的对象赋值给__weak修饰符的变量，所以自己不能持有改对象，这时会释放并废弃引起编译器的警告
+伪代码：
+id objc;
+id tmp = objc_msgSend(NSObject,@selector(alloc));
+objc_msgSend(tmp,@selector(init));
+objc_initWeak(&objc,tmp);
+objc_release(tmp); 因为只有一个弱引用所以被释放
+objc_destoryWeak(&objc);
+虽然自己生成并持有的对象通过objc_initWeak函数被赋给__weak修饰的变量，但是编译器判断没有持有者，故该对象被立刻废弃
+
+
+
+
+
+
+
